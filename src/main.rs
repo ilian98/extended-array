@@ -4,18 +4,18 @@ use exray::Exray;
 fn main() {
     println!("Hello, world!");
     
-    let mut e = Exray::<i32>::new(vec![Box::new(|x: Option<&i32>, y: Option<&i32>| -> i32 {
+    let mut e = Exray::<i32>::new(vec![Box::new(|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
         match x {
             None => {
-                match y {
-                    None => panic!("Function called with two none as parameters!"),
-                    Some(y) => *y,
+                match z {
+                    None => *y,
+                    Some(z) => *y + *z,
                 }
             },
             Some(x) => {
-                match y {
-                    None => *x,
-                    Some(y) => *x+*y,
+                match z {
+                    None => *x + *y,
+                    Some(z) => *x + *y + *z,
                 }
             }
         }
