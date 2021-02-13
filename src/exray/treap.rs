@@ -1,5 +1,5 @@
 pub type Link<T> = Option<Box<ImplicitTreap<T>>>;
-pub type Func<T> = dyn Fn(Option<&T>, &T, Option<&T>) -> T;
+pub type Func<T> = fn(Option<&T>, &T, Option<&T>) -> T;
 pub struct ImplicitTreap<T> {
     cnt: u32, // cnt is the size of the subtree
     y_key: i32,
@@ -16,6 +16,12 @@ pub fn get_cnt<T> (curr: &Link<T>) -> u32 {
     }
     return curr.as_ref().unwrap().cnt;
 }
+pub fn get_values<T> (curr: &Link<T>) -> &[T] {
+    if curr.is_none() {
+        return &[];
+    }
+    return &curr.as_ref().unwrap().value_all;
+}
 
 use rand::Rng;
 pub fn make_treap<T> (value: T, value_all: Vec<T>) -> Link<T> {
@@ -30,7 +36,7 @@ pub fn make_treap<T> (value: T, value_all: Vec<T>) -> Link<T> {
     }))
 }
 
-fn recover<T> (curr: &mut Link<T>, functions: &[Box<Func<T>>]) {
+fn recover<T> (curr: &mut Link<T>, functions: &[Func<T>]) {
     if curr.is_none() {
         return ;
     }
@@ -62,7 +68,7 @@ fn recover<T> (curr: &mut Link<T>, functions: &[Box<Func<T>>]) {
 }
 use std::mem;
 pub fn split<T> (curr: &mut Link<T>, ind: u32, mut l_part: &mut Link<T>, mut r_part: &mut Link<T>,
-    functions: &[Box<Func<T>>]) {
+    functions: &[Func<T>]) {
     match curr {
         None => {
             *l_part = None;
@@ -92,7 +98,7 @@ pub fn split<T> (curr: &mut Link<T>, ind: u32, mut l_part: &mut Link<T>, mut r_p
 
 }
 pub fn merge<T> (mut curr: &mut Link<T>, mut l_part: &mut Link<T>, mut r_part: &mut Link<T>, 
-    functions: &[Box<Func<T>>]) {
+    functions: &[Func<T>]) {
     if l_part.is_none() || r_part.is_none() {
         if l_part.is_some() {
             *curr = mem::replace(&mut *l_part, None);
@@ -149,19 +155,43 @@ pub fn find_mut_index<T> (curr: &mut Link<T>, ind: u32) -> &mut T {
     }
 }
 
-
-pub fn output<'a> (curr: Option<&'a Box<ImplicitTreap<i32>>>) {
+pub fn drop_treap<T> (curr: &mut Link<T>) {
     if curr.is_none() {
         return ;
     }
-    print!("{}, {}, {},  ",curr.as_ref().unwrap().cnt,curr.as_ref().unwrap().value,curr.as_ref().unwrap().y_key);
-    for value in curr.as_ref().unwrap().value_all.iter() {
-        print!("{} ",value);
+    let node = curr.as_mut().unwrap();
+    if node.l.is_some() {
+        drop_treap(&mut node.l);
     }
-    println!("");
+    if node.r.is_some() {
+        drop_treap(&mut node.r);
+    }
+    drop(node);
+}
 
-    print!("l: ");
-    output(curr.as_ref().unwrap().l.as_ref());
-    print!("\nr: ");
-    output(curr.as_ref().unwrap().r.as_ref());
+
+pub fn clone_treap<T> (curr: &Link<T>) -> Link<T> 
+    where T: Clone {
+    if curr.is_none() {
+        return None;
+    }
+    let node = curr.as_ref().unwrap();
+    let mut new_node = Box::new(ImplicitTreap::<T> {
+        cnt: node.cnt,
+        y_key: node.y_key,
+        value: node.value.clone(),
+        value_all: node.value_all.clone(),
+
+        l: None,
+        r: None,
+    });
+    if node.l.is_some() {
+        new_node.l = clone_treap(&node.l);
+    }
+    if node.r.is_some() {
+        new_node.r = clone_treap(&node.r);
+    }
+    drop(node);
+
+    Some(new_node)
 }
