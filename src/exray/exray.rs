@@ -33,7 +33,7 @@ mod tests {
     }
     #[test]
     fn test_insert() {
-        let mut e = Exray::<i32>::new(vec![|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
+        let mut e = Exray::<i32>::new(vec![],vec![|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
             match x {
                 None => {
                     match z {
@@ -93,7 +93,7 @@ mod tests {
     }
     #[test]
     fn test_erase() {
-        let mut e = Exray::<i32>::new(vec![add]);
+        let mut e = Exray::<i32>::new(vec![], vec![add]);
         assert_match!(e.insert(0, 2).err(), None);
         assert_match!(e.insert(0, 1).err(), None);
         assert_match!(e.insert(2, 3).err(), None);
@@ -141,13 +141,13 @@ mod tests {
 
     #[test]
     fn test_other_segment_fns () {
-        let mut e = Exray::<i32>::new(vec![add]);
+        let mut e = Exray::<i32>::new(vec![],vec![add]);
         assert_match!(e.insert(0, 2).err(), None);
         assert_match!(e.insert(0, 1).err(), None);
         assert_match!(e.insert(2, 9).err(), None);
         assert_match!(e.insert(2, 4).err(), None);
 
-        let r = e.exray_from_segment(1, 2);
+        let r = e.extract_segment(1, 2);
         assert_match!(r.as_ref().err(), None);
         let mut new_e = r.unwrap();
         assert_eq!(exray_to_vec(&new_e), vec![2,4]);
@@ -176,7 +176,7 @@ mod tests {
         assert_match!(e.segment_functions_values(1,4).err(), Some(ExrayError::IndexError(_)));
         assert_match!(e.segment_functions_values(2,1).err(), Some(ExrayError::IndexError(_)));
         
-        let fail_e = Exray::<i32>::new(vec![|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
+        let fail_e = Exray::<i32>::new(vec![], vec![|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
             match x {
                 None => {
                     match z {
@@ -195,7 +195,7 @@ mod tests {
         let err2 = e.insert_exray(fail_e, 0);
         assert_match!(err2.as_ref().err(), Some(ExrayError::IncompatibleExrayError(_)));
         
-        let mut last_e = Exray::<i32>::new(vec![add]);
+        let mut last_e = Exray::<i32>::new(vec![], vec![add]);
         assert_match!(last_e.insert(0, 42).err(), None);
         let err3 = e.insert_exray(last_e, 0); // array should be: [42, 1, 2, 3, 9]
         assert_match!(err3.as_ref().err(), None);
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_clone_segment () {
-        let mut e = Exray::<i32>::new(vec![add]);
+        let mut e = Exray::<i32>::new(vec![],vec![add]);
         assert_match!(e.insert(0, 2).err(), None);
         assert_match!(e.insert(0, 1).err(), None);
         assert_match!(e.insert(2, 4).err(), None);
@@ -246,11 +246,17 @@ pub enum ExrayError {
 }
 
 impl<T> Exray<T> {
-    pub fn new (functions: Vec<Func<T>>) -> Self {
-        Exray::<T> {
+    pub fn new (elements: Vec<T>, functions: Vec<Func<T>>) -> Self {
+        let mut exray = Exray::<T> {
             root: None,
             functions: functions,
+        };
+        let mut ind = 0;
+        for element in elements {
+            exray.insert(ind, element);
+            ind = ind + 1;
         }
+        return exray;
     }
 
     pub fn len (&self) -> usize {
@@ -341,7 +347,7 @@ impl<T> Exray<T> {
     }
 
 
-    pub fn exray_from_segment (&mut self, from_ind: usize, to_ind: usize) -> Result<Self, ExrayError> {
+    pub fn extract_segment (&mut self, from_ind: usize, to_ind: usize) -> Result<Self, ExrayError> {
         if to_ind < from_ind {
             return Err(ExrayError::IndexError(String::from("To index is smaller than from index!")))
         }
