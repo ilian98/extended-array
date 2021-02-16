@@ -12,8 +12,12 @@ pub enum CommandError {
     InputEnd(String),
     IOError(io::Error),
     FileError(io::Error),
+    ExrayError(ExrayError),
+
     CreateError(String),
     SaveError(String),
+    PrintError(String),
+    
     GetElementError(String),
     ChangeElementError(String),
     InsertElementError(String),
@@ -23,7 +27,6 @@ pub enum CommandError {
     InsertExrayError(String),
     SegmentFvaluesError(String),
     ExrayFvalues(String),
-    ExrayError(ExrayError),
 }
 
 fn try_line (result: Option<Result<String, Error>>) -> Result<Vec<String>, CommandError> {
@@ -207,6 +210,34 @@ fn save (words: &[String], exrays: &ExrayMap, functions: &FuncMap) -> Result<(),
 
     return Ok(());
 }
+
+fn print_exray (words: &[String], exrays: &ExrayMap, functions: &FuncMap) -> Result<(), CommandError> {
+    match check_name(words,2,exrays) {
+        Err(None) => {
+            return Err(CommandError::PrintError(String::from("One arguments expected - name of exray")));
+        },
+        Err(Some(e)) => return Err(CommandError::PrintError(e)),
+        _ => {},
+    }
+    
+    let exray = exrays.get(&words[1]).unwrap();
+    for num in exray.to_vec() {
+        print!("{} ", num);
+    }
+    print!("\n{}\n", words[1]);
+    for exray_func in exray.functions() {
+        for (fn_name, func) in functions {
+            if *exray_func as usize == *func as usize {
+                print!("{} ", fn_name);
+                break;
+            }
+        }
+    }
+    println!();
+
+    return Ok(());
+}
+
 
 fn get_element (words: &[String], exrays: &ExrayMap) -> Result<i64, CommandError> {
     match check_name(words,3,exrays) {
@@ -516,7 +547,7 @@ fn main() {
             continue;
         }
         
-        let command_name = &words[0];
+        let command_name = &words[0].to_lowercase();
         if command_name == "exit" {
             break;
         }
@@ -533,6 +564,24 @@ fn main() {
                 _ => println!("Exray successfully saved in file!"),
             }
         }
+        else if command_name == "exray_names" {
+            if exrays.len() == 0 {
+                println!("No exrays");
+                continue;
+            }
+            print!("Exray names:");
+            for (name, _) in &exrays {
+                print!(" {}", name);
+            }
+            println!();
+        }
+        else if command_name == "print" {
+            match print_exray(&words, &exrays, &functions) {
+                Err(e) => println!("{:?}", e),
+                _ => {},
+            }
+        }
+
         else if command_name == "get_element" {
             match get_element(&words, &exrays) {
                 Err(e) => println!("{:?}", e),
@@ -593,6 +642,8 @@ fn main() {
                 Ok(fvalues) => println!("Exray function values for all numbers - {:?}", fvalues),
             }
         }
-        
+        else {
+            println!("No command with that name, command names are - exit, create, save, exray_names, print, get_element, change_element, insert_element, erase_element, erase_segment, extract_segment, insert_exray, clone_segment, segment_fvalues, exray_fvalues");
+        }
     }
 }
