@@ -195,3 +195,14 @@ pub fn clone_treap<T> (curr: &Link<T>) -> Link<T>
 
     Some(new_node)
 }
+
+pub fn collect_elements<T> (curr: &Link<T>, mut v: &mut Vec<T>) 
+    where T: Clone {
+    if curr.is_none() {
+        return ;
+    }
+    let node = curr.as_ref().unwrap();
+    collect_elements(&node.l, &mut v);
+    v.push(node.value.clone());
+    collect_elements(&node.r, &mut v);
+}
