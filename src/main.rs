@@ -7,6 +7,415 @@ use io::Write;
 use std::{fs::File, io::Error};
 use std::io::{self, BufRead, BufReader, BufWriter, Lines, StdinLock};
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    use super::*;
+    use std::{fs::remove_file};
+    macro_rules! assert_match {
+        ($expr:expr, $pat:pat) => {
+            if let $pat = $expr {
+                // all good
+            } else {
+                assert!(
+                    false,
+                    "Expression {:?} does not match the pattern {:?}",
+                    $expr,
+                    stringify!($pat)
+                );
+            }
+        };
+    }
+
+    fn write_to_file (file_name: &str, text: &str) {
+        match File::create(file_name) {
+            Err(_) => panic!("Cannot create file test_create"),
+            Ok(file) => {
+                let mut writer = BufWriter::new(&file);
+                match writeln!(writer, "{}", text) {
+                    Err(_) => panic!("Cannot write to file"),
+                    _ => {},
+                }
+            },
+        }
+    }
+
+    fn check_exray (exray: &Exray<i64>, nums: Vec<i64>, fn_names: Vec<String>, functions: &FuncMap) -> bool {
+        if exray.to_vec() != nums {
+            return false;
+        }
+        let exray_functions = exray.functions();
+        let len = fn_names.len();
+        if exray_functions.len() != len {
+            return false;
+        }
+
+        for i in 0..len {
+            let expected_func = functions.get(&fn_names[i]).unwrap();
+            if exray_functions[i] as usize != *expected_func as usize {
+                return false;
+            }
+        }
+        return true;
+    }
+    fn check_exrays (exrays: &ExrayMap, expected: Vec<(String, Vec<i64>, Vec<String>)>, functions: &FuncMap) -> bool {
+        if exrays.len() != expected.len() {
+            return false;
+        }
+        for element in expected {
+            if exrays.contains_key(&element.0) == false {
+                return false;
+            }
+            let exray = exrays.get(&element.0).unwrap();
+            if check_exray(exray, element.1, element.2, functions) == false {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    #[test]
+    fn test_create() {
+        let stdin = io::stdin();
+        let mut line_it = stdin.lock().lines();
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let mut functions = HashMap::<String, Func<i64>>::new();
+        fill_functions(&mut functions);
+        
+        write_to_file("test_create", "2 9 -5 10 1024 0\ntest\nsum min max min sum min");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), None);
+        assert_eq!(check_exrays(&exrays, vec![(String::from("test"), vec![2, 9, -5, 10, 1024, 0], 
+        vec![String::from("sum"), String::from("min"), String::from("max")])], &functions), true);
+        
+        write_to_file("test_create", "2 9 -5 10 1024 0\ntest\nsum min max min sum min");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::CreateError(_)));
+        assert_match!(create(&[], &mut line_it, &mut exrays, &functions).err(), Some(CommandError::CreateError(_)));
+        assert_match!(create(&[String::from("1"), String::from("2"), String::from("3")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::CreateError(_)));
+        write_to_file("test_create", "2 9 -5 10 1024");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::InputEnd(_)));
+        write_to_file("test_create", "2 9 -5 10 1024\ntes");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::InputEnd(_)));
+        
+        assert_match!(create(&[String::from("create"), String::from("no-file")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::FileError(_)));
+        
+        write_to_file("test_create", "\ntes\n");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::CreateError(_)));
+        write_to_file("test_create", "5\n\n");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), 
+        Some(CommandError::CreateError(_)));
+        
+        write_to_file("test_create", "5\ntest2\nmin");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), None);
+        assert_eq!(check_exrays(&exrays, vec![
+            (String::from("test"), vec![2, 9, -5, 10, 1024, 0], 
+            vec![String::from("sum"), String::from("min"), String::from("max")]),
+            (String::from("test2"), vec![5], 
+            vec![String::from("min")])], &functions), true);
+        
+
+        match remove_file("test_create") {
+            Err(_) => panic!("Cannot remove file test_create"),
+            _ => {},
+        }
+    }
+
+    #[test]
+    fn test_save() {
+        let stdin = io::stdin();
+        let mut line_it = stdin.lock().lines();
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let mut functions = HashMap::<String, Func<i64>>::new();
+        fill_functions(&mut functions);
+        
+        write_to_file("test_create", "2 9 -5 10 1024 0\ntest\nsum min max min sum min");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), None);
+        write_to_file("test_create", "5\ntest2\nmin");
+        assert_match!(create(&[String::from("create"), String::from("test_create")], &mut line_it, &mut exrays, &functions).err(), None);
+        
+        assert_match!(save(&[String::from("save"), String::from("test"), String::from("saved")], &mut exrays, &functions).err(), None);
+        exrays.remove("test");
+        assert_match!(create(&[String::from("create"), String::from("saved")], &mut line_it, &mut exrays, &functions).err(), None);
+        assert_eq!(check_exray(exrays.get("test").unwrap(), vec![2, 9, -5, 10, 1024, 0], 
+        vec![String::from("sum"), String::from("min"), String::from("max")], &functions), true);
+
+        assert_match!(save(&[String::from("save"), String::from("test2"), String::from("saved")], &mut exrays, &functions).err(), None);
+        exrays.remove("test2");
+        assert_match!(create(&[String::from("create"), String::from("saved")], &mut line_it, &mut exrays, &functions).err(), None);
+        assert_eq!(check_exray(exrays.get("test2").unwrap(), vec![5], 
+        vec![String::from("min")], &functions), true);
+
+        assert_match!(save(&[String::from("save"), String::from("no-exray"), String::from("saved")], &mut exrays, &functions).err(), 
+        Some(CommandError::SaveError(_)));
+        assert_match!(save(&[], &mut exrays, &functions).err(), 
+        Some(CommandError::SaveError(_)));
+        assert_match!(save(&[String::from("1"), String::from("2"), String::from("3"), String::from("4")], &mut exrays, &functions).err(), 
+        Some(CommandError::SaveError(_)));
+        
+        match remove_file("saved") {
+            Err(_) => panic!("Cannot remove file saved"),
+            _ => {},
+        }
+        match remove_file("test_create") {
+            Err(_) => panic!("Cannot remove file test_create"),
+            _ => {},
+        }
+    }
+
+    #[test]
+    fn test_get_element() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![2,9,-5,10,1024];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        for i in 0..numbers.len() {
+            assert_eq!(get_element(&[String::from("1"), String::from("test"), i.to_string()], &exrays).unwrap(), numbers[i]);
+        }
+
+        assert_match!(get_element(&[], &exrays).err(), Some(CommandError::GetElementError(_)));
+        assert_match!(get_element(&[String::from("1"), String::from("2"), String::from("3"), String::from("4")], &exrays).err(), 
+        Some(CommandError::GetElementError(_)));
+        assert_match!(get_element(&[String::from("1"), String::from("no-exray"), 0.to_string()], &exrays).err(), 
+        Some(CommandError::GetElementError(_)));
+        assert_match!(get_element(&[String::from("1"), String::from("test"), (-1).to_string()], &exrays).err(), 
+        Some(CommandError::GetElementError(_)));
+        assert_match!(get_element(&[String::from("1"), String::from("test"), 6.to_string()], &exrays).err(), 
+        Some(CommandError::GetElementError(_)));
+    }
+
+    #[test]
+    fn test_change_element() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![2,9,-5,10,1024];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        for i in 0..numbers.len() {
+            assert_eq!(change_element(&[String::from("1"), String::from("test"), i.to_string(), i.to_string()], &mut exrays).unwrap(), ());
+            assert_eq!(get_element(&[String::from("1"), String::from("test"), i.to_string()], &exrays).unwrap(), i as i64);
+        }
+
+        assert_match!(change_element(&[], &mut exrays).err(), Some(CommandError::ChangeElementError(_)));
+        assert_match!(change_element(&[String::from("1"), String::from("2"), String::from("3"), String::from("4"), String::from("5")], &mut exrays).err(), 
+        Some(CommandError::ChangeElementError(_)));
+        assert_match!(change_element(&[String::from("1"), String::from("no-exray"), 0.to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::ChangeElementError(_)));
+        assert_match!(change_element(&[String::from("1"), String::from("test"), (-1).to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::ChangeElementError(_)));
+        assert_match!(change_element(&[String::from("1"), String::from("test"), 0.to_string(), String::from("a")], &mut exrays).err(), 
+        Some(CommandError::ChangeElementError(_)));
+        assert_match!(change_element(&[String::from("1"), String::from("test"), 6.to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::ChangeElementError(_)));
+    }
+
+    #[test]
+    fn test_insert_element() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![2,9,-5,10,1024];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        for i in (0..=numbers.len()).rev() {
+            assert_eq!(insert_element(&[String::from("1"), String::from("test"), i.to_string(), i.to_string()], &mut exrays).unwrap(), ());
+        }
+        assert_eq!(exrays.get("test").unwrap().to_vec(), vec![0,2,1,9,2,-5,3,10,4,1024,5]);
+
+        assert_match!(insert_element(&[], &mut exrays).err(), Some(CommandError::InsertElementError(_)));
+        assert_match!(insert_element(&[String::from("1"), String::from("2"), String::from("3"), String::from("4"), String::from("5")], &mut exrays).err(), 
+        Some(CommandError::InsertElementError(_)));
+        assert_match!(insert_element(&[String::from("1"), String::from("no-exray"), 0.to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::InsertElementError(_)));
+        assert_match!(insert_element(&[String::from("1"), String::from("test"), (-1).to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::InsertElementError(_)));
+        assert_match!(insert_element(&[String::from("1"), String::from("test"), 0.to_string(), String::from("a")], &mut exrays).err(), 
+        Some(CommandError::InsertElementError(_)));
+        assert_match!(insert_element(&[String::from("1"), String::from("test"), 12.to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+    }
+
+    #[test]
+    fn test_erase_element() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![2,9,-5,10,1024];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        let erase_indices = vec![3, 1, 2, 1, 0];
+        let mut len = numbers.len();
+        assert_match!(erase_element(&[String::from("1"), String::from("test"), 5.to_string()], &mut exrays).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+        for ind in erase_indices {
+            assert_eq!(erase_element(&[String::from("1"), String::from("test"), ind.to_string()], &mut exrays).unwrap(), ());
+            len = len - 1;
+            assert_eq!(exrays.get("test").unwrap().len(), len);
+        }
+        
+        assert_match!(erase_element(&[], &mut exrays).err(), Some(CommandError::EraseElementError(_)));
+        assert_match!(erase_element(&[String::from("1"), String::from("2"), String::from("3"), String::from("4")], &mut exrays).err(), 
+        Some(CommandError::EraseElementError(_)));
+        assert_match!(erase_element(&[String::from("1"), String::from("no-exray"), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::EraseElementError(_)));
+        assert_match!(erase_element(&[String::from("1"), String::from("test"), (-1).to_string()], &mut exrays).err(), 
+        Some(CommandError::EraseElementError(_)));
+    }
+    
+    #[test]
+    fn test_erase_segment() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), 5.to_string(), 10.to_string()], &mut exrays).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), 5.to_string(), 3.to_string()], &mut exrays).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+        
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), 3.to_string(), 7.to_string()], &mut exrays).err(), None);
+        assert_eq!(exrays.get("test").unwrap().to_vec(), vec![0, 1, 2, 8, 9]);
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), 2.to_string(), 4.to_string()], &mut exrays).err(), None);
+        assert_eq!(exrays.get("test").unwrap().to_vec(), vec![0, 1]);
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), 0.to_string(), 1.to_string()], &mut exrays).err(), None);
+        assert_eq!(exrays.get("test").unwrap().to_vec(), vec![]);
+        
+        assert_match!(erase_segment(&[], &mut exrays).err(), Some(CommandError::EraseSegmentError(_)));
+        assert_match!(erase_segment(&[String::from("1"), String::from("2"), String::from("3"), String::from("4"), String::from("5")], &mut exrays).err(), 
+        Some(CommandError::EraseSegmentError(_)));
+        assert_match!(erase_segment(&[String::from("1"), String::from("no-exray"), 0.to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::EraseSegmentError(_)));
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), (-1).to_string(), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::EraseSegmentError(_)));
+        assert_match!(erase_segment(&[String::from("1"), String::from("test"), 0.to_string(), (-1).to_string()], &mut exrays).err(), 
+        Some(CommandError::EraseSegmentError(_)));
+    }
+    
+    #[test]
+    fn test_extract_or_clone_segment() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        
+        assert_match!(extract_or_clone_segment(
+        &[String::from("1"), String::from("test"), 3.to_string(), 7.to_string(), String::from("clone")], 
+        &mut exrays, String::from("clone")).err(),None);
+        assert_eq!(exrays.get("test").unwrap().to_vec(), numbers);
+        assert_eq!(exrays.get("clone").unwrap().to_vec(), vec![3, 4, 5, 6, 7]);
+
+        assert_match!(extract_or_clone_segment(
+        &[String::from("1"), String::from("test"), 2.to_string(), 5.to_string(), String::from("extract")], 
+        &mut exrays, String::from("extract")).err(),None);
+        assert_eq!(exrays.get("test").unwrap().to_vec(), vec![0, 1, 6, 7, 8, 9]);
+        assert_eq!(exrays.get("clone").unwrap().to_vec(), vec![3, 4, 5, 6, 7]);
+        assert_eq!(exrays.get("extract").unwrap().to_vec(), vec![2, 3, 4, 5]);
+    
+        assert_match!(extract_or_clone_segment(&[], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("2"), String::from("3"), String::from("4"), String::from("5"), String::from("6") ], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("no-exray"), 0.to_string(), 0.to_string(), String::from("e")], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), 0.to_string(), 0.to_string(), String::from("clone")], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), (-1).to_string(), 0.to_string(), String::from("e")], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), 0.to_string(), (-1).to_string(), String::from("e")], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), 3.to_string(), 2.to_string(), String::from("e")], &mut exrays, String::from("clone")).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+        
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), (-1).to_string(), 0.to_string(), String::from("e")], &mut exrays, String::from("extract")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), 0.to_string(), (-1).to_string(), String::from("e")], &mut exrays, String::from("extract")).err(), 
+        Some(CommandError::ExtractCloneSegmentError(_)));
+        assert_match!(extract_or_clone_segment(&[String::from("1"), String::from("test"), 3.to_string(), 2.to_string(), String::from("e")], &mut exrays, String::from("extract")).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+        
+    }
+
+    #[test]
+    fn test_insert_exray() {
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![0, 1, 2, 3, 8, 9];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), vec![]));
+        exrays.insert(String::from("test2"), Exray::<i64>::new(vec![4, 5, 6, 7], vec![]));
+        
+        assert_match!(insert_exray(&[String::from("1"), String::from("test2"), String::from("test"), 4.to_string()], &mut exrays).err(), None);
+        assert_eq!(exrays.get("test").unwrap().to_vec(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(exrays.contains_key("test2"), false);
+        
+        assert_match!(insert_exray(&[], &mut exrays).err(), Some(CommandError::InsertExrayError(_)));
+        assert_match!(insert_exray(&[String::from("1"), String::from("2"), String::from("3"), String::from("4"), String::from("5")], &mut exrays).err(), 
+        Some(CommandError::InsertExrayError(_)));
+        assert_match!(insert_exray(&[String::from("1"), String::from("no-exray"), String::from("e"), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::InsertExrayError(_)));
+        assert_match!(insert_exray(&[String::from("1"), String::from("test"), String::from("no-exray"), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::InsertExrayError(_)));
+        assert_match!(insert_exray(&[String::from("1"), String::from("test"), String::from("test"), 0.to_string()], &mut exrays).err(), 
+        Some(CommandError::InsertExrayError(_)));
+        
+        exrays.insert(String::from("test2"), Exray::<i64>::new(vec![4, 5, 6, 7], vec![]));
+        assert_match!(insert_exray(&[String::from("1"), String::from("test"), String::from("test2"), (-1).to_string()], &mut exrays).err(), 
+        Some(CommandError::InsertExrayError(_)));
+        assert_match!(insert_exray(&[String::from("1"), String::from("test"), String::from("test2"), 10.to_string()], &mut exrays).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+    }
+
+    #[test]
+    fn test_segment_fvalues() {
+        let mut functions = HashMap::<String, Func<i64>>::new();
+        fill_functions(&mut functions);
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![8, 20, 2, 15, 3, 18, 19, 1, 9, 8];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), 
+        vec![*functions.get("sum").unwrap(), *functions.get("max").unwrap(), *functions.get("min").unwrap()]));
+        exrays.insert(String::from("test2"), Exray::<i64>::new(numbers.clone(), vec![]));
+        
+        assert_eq!(segment_fvalues(&[String::from("1"), String::from("test"), 2.to_string(), 4.to_string()], &mut exrays, &functions).unwrap(), 
+        vec![(String::from("sum"), 20), (String::from("max"), 15), (String::from("min"), 2)]); 
+        assert_eq!(segment_fvalues(&[String::from("1"), String::from("test"), 4.to_string(), 8.to_string()], &mut exrays, &functions).unwrap(), 
+        vec![(String::from("sum"), 50), (String::from("max"), 19), (String::from("min"), 1)]); 
+        assert_eq!(segment_fvalues(&[String::from("1"), String::from("test2"), 4.to_string(), 8.to_string()], &mut exrays, &functions).unwrap(), vec![]); 
+        
+        assert_match!(segment_fvalues(&[], &mut exrays, &functions).err(), Some(CommandError::SegmentFvaluesError(_)));
+        assert_match!(segment_fvalues(&[String::from("1"), String::from("2"), String::from("3"), String::from("4"), String::from("5")], &mut exrays, &functions).err(), 
+        Some(CommandError::SegmentFvaluesError(_)));
+        assert_match!(segment_fvalues(&[String::from("1"), String::from("no-exray"), 0.to_string(), 0.to_string()], &mut exrays, &functions).err(), 
+        Some(CommandError::SegmentFvaluesError(_)));
+        assert_match!(segment_fvalues(&[String::from("1"), String::from("test"), (-1).to_string(), 0.to_string()], &mut exrays, &functions).err(), 
+        Some(CommandError::SegmentFvaluesError(_)));
+        assert_match!(segment_fvalues(&[String::from("1"), String::from("test"), 0.to_string(), (-1).to_string()], &mut exrays, &functions).err(), 
+        Some(CommandError::SegmentFvaluesError(_)));
+        assert_match!(segment_fvalues(&[String::from("1"), String::from("test"), 3.to_string(), 10.to_string()], &mut exrays, &functions).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_))));
+        assert_match!(segment_fvalues(&[String::from("1"), String::from("test"), 5.to_string(), 3.to_string()], &mut exrays, &functions).err(), 
+        Some(CommandError::ExrayError(ExrayError::IndexError(_)))); 
+    }
+
+    #[test]
+    fn test_exray_fvalues() {
+        let mut functions = HashMap::<String, Func<i64>>::new();
+        fill_functions(&mut functions);
+        let mut exrays = HashMap::<String, Exray<i64>>::new();
+        let numbers = vec![8, 20, 2, 15, 3, 18, 19, 1, 9, 8];
+        exrays.insert(String::from("test"), Exray::<i64>::new(numbers.clone(), 
+        vec![*functions.get("sum").unwrap(), *functions.get("max").unwrap(), *functions.get("min").unwrap()]));
+        exrays.insert(String::from("test2"), Exray::<i64>::new(numbers.clone(), vec![]));
+        
+        assert_eq!(exray_fvalues(&[String::from("1"), String::from("test")], &exrays, &functions).unwrap(), 
+        vec![(String::from("sum"), 103), (String::from("max"), 20), (String::from("min"), 1)]); 
+        assert_eq!(exray_fvalues(&[String::from("1"), String::from("test2")], &exrays, &functions).unwrap(), vec![]); 
+        
+        assert_match!(exray_fvalues(&[], &exrays, &functions).err(), Some(CommandError::ExrayFvaluesError(_)));
+        assert_match!(exray_fvalues(&[String::from("1"), String::from("2"), String::from("3")], &exrays, &functions).err(), 
+        Some(CommandError::ExrayFvaluesError(_)));
+        assert_match!(exray_fvalues(&[String::from("1"), String::from("no-exray")], &exrays, &functions).err(), 
+        Some(CommandError::ExrayFvaluesError(_)));
+    }
+}
+
 #[derive(Debug)]
 pub enum CommandError {
     InputEnd(String),
@@ -26,7 +435,7 @@ pub enum CommandError {
     ExtractCloneSegmentError(String),
     InsertExrayError(String),
     SegmentFvaluesError(String),
-    ExrayFvalues(String),
+    ExrayFvaluesError(String),
 }
 
 fn try_line (result: Option<Result<String, Error>>) -> Result<Vec<String>, CommandError> {
@@ -52,7 +461,7 @@ type FuncMap = HashMap::<String, Func<i64>>;
 type ExrayMap = HashMap::<String, Exray<i64>>;
 
 fn create (words: &[String], line_it: &mut Lines<StdinLock>, exrays: &mut ExrayMap, functions: &FuncMap) -> Result<String, CommandError> {
-    if words.len() > 2 {
+    if words.len() != 2 {
         return Err(CommandError::CreateError(String::from("Zero or only one argument expected")));
     }
 
@@ -434,6 +843,9 @@ fn insert_exray (words: &[String], exrays: &mut ExrayMap) -> Result<String, Comm
     if exrays.contains_key(&name_dest) == false {
         return Err(CommandError::InsertExrayError(String::from("No exray with the destination name")))
     }
+    if words[1] == name_dest {
+        return Err(CommandError::InsertExrayError(String::from("Exray source and destination name are the same")))
+    }
 
     let index;
     match words[3].parse::<usize>() {
@@ -503,9 +915,9 @@ fn segment_fvalues (words: &[String], exrays: &mut ExrayMap, functions: &FuncMap
 fn exray_fvalues (words: &[String], exrays: &ExrayMap, functions: &FuncMap) -> Result<Vec<(String, i64)>, CommandError> {
     match check_name(words,2,exrays) {
         Err(None) => {
-            return Err(CommandError::SegmentFvaluesError(String::from("One argument expected - name of exray")));
+            return Err(CommandError::ExrayFvaluesError(String::from("One argument expected - name of exray")));
         },
-        Err(Some(e)) => return Err(CommandError::SegmentFvaluesError(e)),
+        Err(Some(e)) => return Err(CommandError::ExrayFvaluesError(e)),
         _ => {},
     }
     
