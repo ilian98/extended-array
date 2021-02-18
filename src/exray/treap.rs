@@ -1,22 +1,22 @@
-pub type Link<T> = Option<Box<ImplicitTreap<T>>>;
-pub type Func<T> = fn(Option<&T>, &T, Option<&T>) -> T;
-pub struct ImplicitTreap<T> {
-    cnt: u32, // cnt is the size of the subtree
-    y_key: i32,
+pub type Link<T, U> = Option<Box<ImplicitTreap<T, U>>>;
+pub type Func<T, U> = fn(Option<(&U, u64)>, &T, Option<(&U, u64)>) -> U;
+pub struct ImplicitTreap<T, U> {
+    cnt: u64, // cnt is the size of the subtree
+    y_key: i64,
     value: T,
-    value_all: Vec<T>, // value_all stores the functions' values for the subtree
+    value_all: Vec<U>, // value_all stores the functions' values for the subtree
 
-    l: Link<T>,
-    r: Link<T>,
+    l: Link<T, U>,
+    r: Link<T, U>,
 }
 
-pub fn get_cnt<T> (curr: &Link<T>) -> u32 {
+pub fn get_cnt<T, U> (curr: &Link<T, U>) -> u64 {
     if curr.is_none() {
         return 0;
     }
     return curr.as_ref().unwrap().cnt;
 }
-pub fn get_values<T> (curr: &Link<T>) -> &[T] {
+pub fn get_values<T, U> (curr: &Link<T, U>) -> &[U] {
     if curr.is_none() {
         return &[];
     }
@@ -24,10 +24,10 @@ pub fn get_values<T> (curr: &Link<T>) -> &[T] {
 }
 
 use rand::Rng;
-pub fn make_treap<T> (value: T, value_all: Vec<T>) -> Link<T> {
-    Some(Box::new(ImplicitTreap::<T> {
+pub fn make_treap<T, U> (value: T, value_all: Vec<U>) -> Link<T, U> {
+    Some(Box::new(ImplicitTreap::<T, U> {
         cnt: 1,
-        y_key: rand::thread_rng().gen::<i32>(),
+        y_key: rand::thread_rng().gen::<i64>(),
         value: value,
         value_all: value_all,
 
@@ -36,12 +36,12 @@ pub fn make_treap<T> (value: T, value_all: Vec<T>) -> Link<T> {
     }))
 }
 
-fn recover<T> (curr: &mut Link<T>, functions: &[Func<T>]) {
+fn recover<T, U> (curr: &mut Link<T, U>, functions: &[Func<T, U>]) {
     if curr.is_none() {
         return ;
     }
     let node = curr.as_mut().unwrap();
-    let mut curr_ind = 1u32;
+    let mut curr_ind = 1;
     if node.l.is_some() {
         curr_ind += node.l.as_ref().unwrap().cnt;
     }
@@ -55,27 +55,27 @@ fn recover<T> (curr: &mut Link<T>, functions: &[Func<T>]) {
     for i in 0..len {
         let function = &functions[i];
         
-        let mut l = None; 
+        let mut l_data= None;
         if node.l.is_some() {
-            l = Some(&node.l.as_ref().unwrap().value_all[i]);
+            l_data = Some((&node.l.as_ref().unwrap().value_all[i], node.l.as_ref().unwrap().cnt));
         }
-        let mut r = None;
+        let mut r_data = None;
         if node.r.is_some() {
-            r = Some(&node.r.as_ref().unwrap().value_all[i]);
+            r_data = Some((&node.r.as_ref().unwrap().value_all[i], node.r.as_ref().unwrap().cnt));
         }
-        node.value_all.push(function(l, &node.value, r));
+        node.value_all.push(function(l_data, &node.value, r_data));
     }
 }
 use std::mem;
-pub fn split<T> (curr: &mut Link<T>, ind: u32, mut l_part: &mut Link<T>, mut r_part: &mut Link<T>,
-    functions: &[Func<T>]) {
+pub fn split<T, U> (curr: &mut Link<T, U>, ind: u64, mut l_part: &mut Link<T, U>, mut r_part: &mut Link<T, U>,
+    functions: &[Func<T, U>]) {
     match curr {
         None => {
             *l_part = None;
             *r_part = None;
         },
         Some(ref node) => {
-            let mut curr_len = 1u32;
+            let mut curr_len = 1;
             if node.l.is_some() {
                 curr_len += node.l.as_ref().unwrap().cnt;
             }
@@ -97,8 +97,8 @@ pub fn split<T> (curr: &mut Link<T>, ind: u32, mut l_part: &mut Link<T>, mut r_p
     }
 
 }
-pub fn merge<T> (mut curr: &mut Link<T>, mut l_part: &mut Link<T>, mut r_part: &mut Link<T>, 
-    functions: &[Func<T>]) {
+pub fn merge<T, U> (mut curr: &mut Link<T, U>, mut l_part: &mut Link<T, U>, mut r_part: &mut Link<T, U>, 
+    functions: &[Func<T, U>]) {
     if l_part.is_none() || r_part.is_none() {
         if l_part.is_some() {
             *curr = mem::replace(&mut *l_part, None);
@@ -122,8 +122,8 @@ pub fn merge<T> (mut curr: &mut Link<T>, mut l_part: &mut Link<T>, mut r_part: &
     recover(&mut curr, functions);
 }
 
-pub fn find_index<T> (curr: &Link<T>, ind: u32) -> &T {
-    let mut curr_len = 1u32;
+pub fn find_index<T, U> (curr: &Link<T, U>, ind: u64) -> &T {
+    let mut curr_len = 1;
     let node = curr.as_ref().unwrap();
     if node.l.is_some() {
         curr_len += node.l.as_ref().unwrap().cnt;
@@ -138,8 +138,8 @@ pub fn find_index<T> (curr: &Link<T>, ind: u32) -> &T {
         find_index(&node.l, ind)
     }
 }
-pub fn find_mut_index<T> (curr: &mut Link<T>, ind: u32) -> &mut T {
-    let mut curr_len = 1u32;
+pub fn find_mut_index<T, U> (curr: &mut Link<T, U>, ind: u64) -> &mut T {
+    let mut curr_len = 1;
     let node = curr.as_mut().unwrap();
     if node.l.is_some() {
         curr_len += node.l.as_ref().unwrap().cnt;
@@ -155,7 +155,7 @@ pub fn find_mut_index<T> (curr: &mut Link<T>, ind: u32) -> &mut T {
     }
 }
 
-pub fn drop_treap<T> (curr: &mut Link<T>) {
+pub fn drop_treap<T, U> (curr: &mut Link<T, U>) {
     if curr.is_none() {
         return ;
     }
@@ -170,13 +170,13 @@ pub fn drop_treap<T> (curr: &mut Link<T>) {
 }
 
 
-pub fn clone_treap<T> (curr: &Link<T>) -> Link<T> 
-    where T: Clone {
+pub fn clone_treap<T, U> (curr: &Link<T, U>) -> Link<T, U> 
+    where T: Clone, U: Clone {
     if curr.is_none() {
         return None;
     }
     let node = curr.as_ref().unwrap();
-    let mut new_node = Box::new(ImplicitTreap::<T> {
+    let mut new_node = Box::new(ImplicitTreap::<T, U> {
         cnt: node.cnt,
         y_key: node.y_key,
         value: node.value.clone(),
@@ -196,7 +196,7 @@ pub fn clone_treap<T> (curr: &Link<T>) -> Link<T>
     Some(new_node)
 }
 
-pub fn collect_elements<T> (curr: &Link<T>, mut v: &mut Vec<T>) 
+pub fn collect_elements<T, U> (curr: &Link<T, U>, mut v: &mut Vec<T>) 
     where T: Clone {
     if curr.is_none() {
         return ;

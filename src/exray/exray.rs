@@ -23,8 +23,8 @@ mod tests {
         };
     }
 
-    fn exray_to_vec (e: &Exray<i32>) -> Vec<i32> {
-        let mut res = Vec::<i32>::new();
+    fn exray_to_vec (e: &Exray<i64, i64>) -> Vec<i64> {
+        let mut res = Vec::<i64>::new();
         let len = e.len();
         for i in 0..len {
             res.push(e[i].clone());
@@ -33,33 +33,33 @@ mod tests {
     }
     #[test]
     fn test_insert() {
-        let mut e = Exray::<i32>::new(vec![],vec![|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
+        let mut e = Exray::<i64, i64>::new(vec![],vec![|x: Option<(&i64, u64)>, y: &i64, z: Option<(&i64, u64)>| -> i64 {
             match x {
                 None => {
                     match z {
-                        None => (*y)*2,
-                        Some(z) => (*y)*2 + *z,
+                        None => *y*2,
+                        Some(z) => (*y)*2 + *z.0,
                     }
                 },
                 Some(x) => {
                     match z {
-                        None => *x + (*y)*2,
-                        Some(z) => *x + (*y)*2 + *z,
+                        None => *x.0 + (*y)*2,
+                        Some(z) => *x.0 + (*y)*2 + *z.0,
                     }
                 }
             }
-        }, |x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
+        }, |x: Option<(&i64, u64)>, y: &i64, z: Option<(&i64, u64)>| -> i64 {
             match x {
                 None => {
                     match z {
                         None => (*y),
-                        Some(z) => cmp::min(*y, *z),
+                        Some(z) => cmp::min(*y, *z.0),
                     }
                 },
                 Some(x) => {
                     match z {
-                        None => cmp::min(*x, *y),
-                        Some(z) => cmp::min(cmp::min(*x, *y), *z),
+                        None => cmp::min(*x.0, *y),
+                        Some(z) => cmp::min(cmp::min(*x.0, *y), *z.0),
                     }
                 }
             }
@@ -75,25 +75,25 @@ mod tests {
         assert_match!(e.insert(5, 1).err(), Some(ExrayError::IndexError(_)));
     }
 
-    fn add (x: Option<&i32>, y: &i32, z: Option<&i32>) -> i32 {
+    fn add (x: Option<(&i64, u64)>, y: &i64, z: Option<(&i64, u64)>) -> i64 {
         match x {
             None => {
                 match z {
                     None => *y,
-                    Some(z) => *y + *z,
+                    Some(z) => *y + *z.0,
                 }
             },
             Some(x) => {
                 match z {
-                    None => *x + *y,
-                    Some(z) => *x + *y + *z,
+                    None => *x.0 + *y,
+                    Some(z) => *x.0 + *y + *z.0,
                 }
             }
         }
     }
     #[test]
     fn test_erase() {
-        let mut e = Exray::<i32>::new(vec![], vec![add]);
+        let mut e = Exray::<i64, i64>::new(vec![], vec![add]);
         assert_match!(e.insert(0, 2).err(), None);
         assert_match!(e.insert(0, 1).err(), None);
         assert_match!(e.insert(2, 3).err(), None);
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_other_segment_fns () {
-        let mut e = Exray::<i32>::new(vec![],vec![add]);
+        let mut e = Exray::<i64, i64>::new(vec![],vec![add]);
         assert_match!(e.insert(0, 2).err(), None);
         assert_match!(e.insert(0, 1).err(), None);
         assert_match!(e.insert(2, 9).err(), None);
@@ -176,18 +176,18 @@ mod tests {
         assert_match!(e.segment_functions_values(1,4).err(), Some(ExrayError::IndexError(_)));
         assert_match!(e.segment_functions_values(2,1).err(), Some(ExrayError::IndexError(_)));
         
-        let mut fail_e = Exray::<i32>::new(vec![], vec![|x: Option<&i32>, y: &i32, z: Option<&i32>| -> i32 {
+        let mut fail_e = Exray::<i64, i64>::new(vec![], vec![|x: Option<(&i64, u64)>, y: &i64, z: Option<(&i64, u64)>| -> i64 {
             match x {
                 None => {
                     match z {
                         None => *y,
-                        Some(z) => *y + *z,
+                        Some(z) => *y + *z.0,
                     }
                 },
                 Some(x) => {
                     match z {
-                        None => *x + *y,
-                        Some(z) => *x + *y + *z,
+                        None => *x.0 + *y,
+                        Some(z) => *x.0 + *y + *z.0,
                     }
                 }
             }
@@ -195,7 +195,7 @@ mod tests {
         let err2 = e.insert_exray(&mut fail_e, 0);
         assert_match!(err2.as_ref().err(), Some(ExrayError::IncompatibleExrayError(_)));
         
-        let mut last_e = Exray::<i32>::new(vec![], vec![add]);
+        let mut last_e = Exray::<i64, i64>::new(vec![], vec![add]);
         assert_match!(last_e.insert(0, 42).err(), None);
         let err3 = e.insert_exray(&mut last_e, 0); // array should be: [42, 1, 2, 3, 9]
         assert_match!(err3.as_ref().err(), None);
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_clone_segment () {
-        let mut e = Exray::<i32>::new(vec![],vec![add]);
+        let mut e = Exray::<i64, i64>::new(vec![],vec![add]);
         assert_match!(e.insert(0, 2).err(), None);
         assert_match!(e.insert(0, 1).err(), None);
         assert_match!(e.insert(2, 4).err(), None);
@@ -235,9 +235,9 @@ mod tests {
     }
 }
 
-pub struct Exray<T> { // the name comes from the beginning and ending of extended-array :)
-    root: Link<T>,
-    functions: Vec<Func<T>>,
+pub struct Exray<T, U> { // the name comes from the beginning and ending of extended-array :)
+    root: Link<T, U>,
+    functions: Vec<Func<T, U>>,
 }
 #[derive(Debug)]
 pub enum ExrayError {
@@ -245,9 +245,9 @@ pub enum ExrayError {
     IncompatibleExrayError(String),
 }
 
-impl<T> Exray<T> {
-    pub fn new (elements: Vec<T>, functions: Vec<Func<T>>) -> Self {
-        let mut exray = Exray::<T> {
+impl<T, U> Exray<T, U> {
+    pub fn new (elements: Vec<T>, functions: Vec<Func<T, U>>) -> Self {
+        let mut exray = Exray::<T, U> {
             root: None,
             functions: functions,
         };
@@ -265,7 +265,7 @@ impl<T> Exray<T> {
         get_cnt(&self.root) as usize
     }
 
-    pub fn functions(&self) -> &[Func<T>] {
+    pub fn functions(&self) -> &[Func<T, U>] {
         &self.functions
     }
 
@@ -276,9 +276,9 @@ impl<T> Exray<T> {
         
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, ind as u64, &mut l_part, &mut r_part, &self.functions);
 
-        let mut value_all = Vec::<T>::new();
+        let mut value_all = Vec::<U>::new();
         for function in self.functions.iter() {
             value_all.push(function(None, &value, None));
         }
@@ -297,7 +297,7 @@ impl<T> Exray<T> {
 
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, ind as u64, &mut l_part, &mut r_part, &self.functions);
         let mut rl_part = None;
         let mut rr_part = None;
         split(&mut r_part, 1, &mut rl_part, &mut rr_part, &self.functions);
@@ -317,10 +317,10 @@ impl<T> Exray<T> {
 
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, beg_ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, beg_ind as u64, &mut l_part, &mut r_part, &self.functions);
         let mut rl_part = None;
         let mut rr_part = None;
-        split(&mut r_part, (end_ind as u32) - (beg_ind as u32) + 1, &mut rl_part, &mut rr_part, &self.functions);
+        split(&mut r_part, (end_ind as u64) - (beg_ind as u64) + 1, &mut rl_part, &mut rr_part, &self.functions);
 
         merge(&mut self.root, &mut l_part, &mut rr_part, &self.functions);
 
@@ -343,7 +343,7 @@ impl<T> Exray<T> {
         
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, ind as u64, &mut l_part, &mut r_part, &self.functions);
 
         let mut temp = None;
         merge(&mut temp, &mut l_part, &mut source.root, &self.functions);
@@ -364,10 +364,10 @@ impl<T> Exray<T> {
 
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, beg_ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, beg_ind as u64, &mut l_part, &mut r_part, &self.functions);
         let mut rl_part = None;
         let mut rr_part = None;
-        split(&mut r_part, (end_ind as u32) - (beg_ind as u32) + 1, &mut rl_part, &mut rr_part, &self.functions);
+        split(&mut r_part, (end_ind as u64) - (beg_ind as u64) + 1, &mut rl_part, &mut rr_part, &self.functions);
 
         merge(&mut self.root, &mut l_part, &mut rr_part, &self.functions);
 
@@ -378,7 +378,7 @@ impl<T> Exray<T> {
     }
 
     pub fn clone_segment (&mut self, beg_ind: usize, end_ind: usize) -> Result<Self, ExrayError> 
-        where T: Clone {
+        where T: Clone, U: Clone {
         if end_ind < beg_ind {
             return Err(ExrayError::IndexError(String::from("End index is smaller than begin index!")))
         }
@@ -388,10 +388,10 @@ impl<T> Exray<T> {
 
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, beg_ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, beg_ind as u64, &mut l_part, &mut r_part, &self.functions);
         let mut rl_part = None;
         let mut rr_part = None;
-        split(&mut r_part, (end_ind as u32) - (beg_ind as u32) + 1, &mut rl_part, &mut rr_part, &self.functions);
+        split(&mut r_part, (end_ind as u64) - (beg_ind as u64) + 1, &mut rl_part, &mut rr_part, &self.functions);
 
         let new_root = clone_treap(&rl_part);
 
@@ -406,8 +406,8 @@ impl<T> Exray<T> {
     }
     
 
-    pub fn segment_functions_values (&mut self, beg_ind: usize, end_ind: usize) -> Result<Vec<T>, ExrayError> 
-        where T: Clone {
+    pub fn segment_functions_values (&mut self, beg_ind: usize, end_ind: usize) -> Result<Vec<U>, ExrayError> 
+        where T: Clone, U: Clone {
         if end_ind < beg_ind {
             return Err(ExrayError::IndexError(String::from("End index is smaller than begin index!")))
         }
@@ -417,12 +417,12 @@ impl<T> Exray<T> {
 
         let mut l_part = None;
         let mut r_part = None;
-        split(&mut self.root, beg_ind as u32, &mut l_part, &mut r_part, &self.functions);
+        split(&mut self.root, beg_ind as u64, &mut l_part, &mut r_part, &self.functions);
         let mut rl_part = None;
         let mut rr_part = None;
-        split(&mut r_part, (end_ind as u32) - (beg_ind as u32) + 1, &mut rl_part, &mut rr_part, &self.functions);
+        split(&mut r_part, (end_ind as u64) - (beg_ind as u64) + 1, &mut rl_part, &mut rr_part, &self.functions);
 
-        let mut values: Vec<T>;
+        let mut values: Vec<U>;
         values = vec![];
         values.extend_from_slice(get_values(&rl_part));
 
@@ -432,11 +432,29 @@ impl<T> Exray<T> {
         return Ok(values);
     }
 
-    pub fn functions_values (&self) -> &[T] {
+    pub fn functions_values (&self) -> &[U] {
         if self.len() == 0 {
             return &[];
         }
         return get_values(&self.root);
+    }
+
+    pub fn recover_fvalues(&mut self, ind: usize) -> Result <(), ExrayError> {
+        if self.len() <= ind {
+            return Err(ExrayError::IndexError(String::from("Index greater than last index!")))
+        }
+
+        let mut l_part = None;
+        let mut r_part = None;
+        split(&mut self.root, ind as u64, &mut l_part, &mut r_part, &self.functions);
+        let mut rl_part = None;
+        let mut rr_part = None;
+        split(&mut r_part, 1, &mut rl_part, &mut rr_part, &self.functions);
+
+        merge(&mut r_part, &mut rl_part, &mut rr_part, &self.functions);
+        merge(&mut self.root, &mut l_part, &mut r_part, &self.functions);
+
+        return Ok(());
     }
 
     pub fn to_vec (&self) -> Vec<T> 
@@ -448,41 +466,29 @@ impl<T> Exray<T> {
 }
 
 use std::ops::Index;
-impl<T> Index<usize> for Exray<T> {
+impl<T, U> Index<usize> for Exray<T, U> {
     type Output = T;
 
     fn index(&self, ind: usize) -> &Self::Output {
-        find_index(&self.root, ind as u32)
+        find_index(&self.root, ind as u64)
     }
 }
 use std::ops::IndexMut;
-impl<T> IndexMut<usize> for Exray<T> {
+impl<T, U> IndexMut<usize> for Exray<T, U> { // after changing value, recover_fvalues at ind should be called!
     fn index_mut(&mut self, ind: usize) -> &mut Self::Output {
-        find_mut_index(&mut self.root, ind as u32)
+        find_mut_index(&mut self.root, ind as u64)
     }
 }
 
-impl<T> Drop for Exray<T> {
+impl<T, U> Drop for Exray<T, U> {
     fn drop(&mut self) {
         drop_treap(&mut self.root);
     }
 }
 
-use std::fmt::{self, Debug, Formatter};
-impl<T: Clone + Debug> Debug for Exray<T> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let len = self.len();
-        let mut nums = Vec::<T>::new();
-        for i in 0..len {
-            nums.push(self[i].clone());
-        }
-        write!(f, "{:?}", nums)
-    }
-}
-
-impl<T: Clone> Clone for Exray<T> {
+impl<T: Clone, U: Clone> Clone for Exray<T, U> {
     fn clone(&self) -> Self {
-        Exray::<T> {
+        Exray::<T, U> {
             root: clone_treap(&self.root),
             functions: self.functions.clone(),
         }
