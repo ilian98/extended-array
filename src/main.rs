@@ -1497,7 +1497,7 @@ fn try_line(result: Option<Result<String, Error>>) -> Result<Vec<String>, Comman
 }
 
 use std::collections::{HashMap, HashSet};
-type T = i64; // change to Element for demo (default value is type i64)!
+type T = Element; // change to Element for demo (default value is type i64)!
 type FuncMap<T, U> = HashMap<String, Func<T, U>>;
 type ExrayMap<T, U> = HashMap<String, Exray<T, U>>;
 

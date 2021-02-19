@@ -1,3 +1,4 @@
+/// This file is for the implementation of exray structure that has public interface and is based on the implicit treap in treap.rs
 use crate::exray::treap::*;
 #[cfg(test)]
 mod tests {
@@ -238,9 +239,11 @@ mod tests {
     }
 }
 
+/// Exray name comes from the beginning and ending of extended-array :)
 pub struct Exray<T, U> {
-    // the name comes from the beginning and ending of extended-array :)
+    /// link to the root of the implicit treap
     root: Link<T, U>,
+    /// Vector containing the functions that are maintained by the treap
     functions: Vec<Func<T, U>>,
 }
 #[derive(Debug)]
@@ -250,17 +253,21 @@ pub enum ExrayError {
 }
 
 impl<T, U> Exray<T, U> {
+    /// function for making exray with values from the Vector elements and maintaining the functions in Vector functions
     pub fn new(elements: Vec<T>, functions: Vec<Func<T, U>>) -> Self {
         let mut exray = Exray::<T, U> {
             root: None,
             functions: functions,
         };
-        let mut ind = 0;
         for element in elements {
-            match exray.insert(ind, element) {
-                Err(_) => return exray,
-                _ => ind = ind + 1,
+            let mut value_all = Vec::<U>::new();
+            for function in exray.functions.iter() {
+                value_all.push(function(None, &element, None));
             }
+            let mut new_treap = make_treap(element, value_all);
+            let mut temp = None;
+            merge(&mut temp, &mut exray.root, &mut new_treap, &exray.functions);
+            exray.root = temp;
         }
         return exray;
     }
@@ -273,6 +280,7 @@ impl<T, U> Exray<T, U> {
         &self.functions
     }
 
+    /// inserts value at ind in exray
     pub fn insert(&mut self, ind: usize, value: T) -> Result<(), ExrayError> {
         if self.len() < ind {
             return Err(ExrayError::IndexError(String::from(
@@ -302,6 +310,7 @@ impl<T, U> Exray<T, U> {
         return Ok(());
     }
 
+    /// erases the element at ind
     pub fn erase(&mut self, ind: usize) -> Result<(), ExrayError> {
         if self.len() <= ind {
             return Err(ExrayError::IndexError(String::from(
@@ -327,6 +336,7 @@ impl<T, U> Exray<T, U> {
         return Ok(());
     }
 
+    /// erases whole segment [beg_ind; end_ind]
     pub fn erase_segment(&mut self, beg_ind: usize, end_ind: usize) -> Result<(), ExrayError> {
         if end_ind < beg_ind {
             return Err(ExrayError::IndexError(String::from(
@@ -363,6 +373,7 @@ impl<T, U> Exray<T, U> {
         return Ok(());
     }
 
+    /// inserts exray source to self at ind in log(N) time, because of this after this function source points to empty exray 
     pub fn insert_exray(&mut self, source: &mut Self, ind: usize) -> Result<(), ExrayError> {
         if self.len() < ind {
             return Err(ExrayError::IndexError(String::from(
@@ -402,6 +413,7 @@ impl<T, U> Exray<T, U> {
         return Ok(());
     }
 
+    /// makes new exray from segment [beg_ind; end_ind] in log(N) time
     pub fn extract_segment(&mut self, beg_ind: usize, end_ind: usize) -> Result<Self, ExrayError> {
         if end_ind < beg_ind {
             return Err(ExrayError::IndexError(String::from(
@@ -441,6 +453,7 @@ impl<T, U> Exray<T, U> {
         });
     }
 
+    /// clones segment [beg_ind; end_ind] into new exray
     pub fn clone_segment(&mut self, beg_ind: usize, end_ind: usize) -> Result<Self, ExrayError>
     where
         T: Clone,
@@ -487,6 +500,7 @@ impl<T, U> Exray<T, U> {
         });
     }
 
+    /// returns functions values for the segment [beg_ind; end_ind] in Vector, needs the return type of functions to be cloneable
     pub fn segment_functions_values(
         &mut self,
         beg_ind: usize,
@@ -535,6 +549,7 @@ impl<T, U> Exray<T, U> {
         return Ok(values);
     }
 
+    /// returns slice to functions values for all elements in the exray
     pub fn functions_values(&self) -> &[U] {
         if self.len() == 0 {
             return &[];
@@ -542,6 +557,7 @@ impl<T, U> Exray<T, U> {
         return get_values(&self.root);
     }
 
+    /// this functions should be used after changing element with index to recover function values in the treap
     pub fn recover_fvalues(&mut self, ind: usize) -> Result<(), ExrayError> {
         if self.len() <= ind {
             return Err(ExrayError::IndexError(String::from(

@@ -1,21 +1,36 @@
+/// Here is the "inner" part of the exray - the structure implicit treap and functions controlling it
+/// this type is the pointer to an implicit treap
 pub type Link<T, U> = Option<Box<ImplicitTreap<T, U>>>;
+/// this type is the functions that the treap maintains, the function should expect the following:
+/// first parameter which is an option and should contain information for left part of the segment - reference to the value of the maintained function for the left part and number of elements  
+/// second parameter is reference to the value in the middle i.e.
+/// third parameter which is an option and analogous to the first only the information is for the right part of the segment
 pub type Func<T, U> = fn(Option<(&U, u64)>, &T, Option<(&U, u64)>) -> U;
+/// this is the node structure of implicit treap
 pub struct ImplicitTreap<T, U> {
-    cnt: u64, // cnt is the size of the subtree
+    /// cnt is the size of the subtree
+    cnt: u64,
+    /// y_key or priority for the node which is a random integer
     y_key: i64,
+    /// the value stored in the node
     value: T,
-    value_all: Vec<U>, // value_all stores the functions' values for the subtree
+    /// value_all stores the functions' values for the subtree at that node
+    value_all: Vec<U>,
 
+    /// l is link to the left subtree of the node
     l: Link<T, U>,
+    /// r is link to the right subtree of the node
     r: Link<T, U>,
 }
 
+/// this function returns the number of elements at the subtree of some node
 pub fn get_cnt<T, U>(curr: &Link<T, U>) -> u64 {
     if curr.is_none() {
         return 0;
     }
     return curr.as_ref().unwrap().cnt;
 }
+/// this function returns the number of elements at the subtree of some node
 pub fn get_values<T, U>(curr: &Link<T, U>) -> &[U] {
     if curr.is_none() {
         return &[];
@@ -24,6 +39,7 @@ pub fn get_values<T, U>(curr: &Link<T, U>) -> &[U] {
 }
 
 use rand::Rng;
+/// function for constructing a treap from a value and value all for an element
 pub fn make_treap<T, U>(value: T, value_all: Vec<U>) -> Link<T, U> {
     Some(Box::new(ImplicitTreap::<T, U> {
         cnt: 1,
@@ -36,6 +52,7 @@ pub fn make_treap<T, U>(value: T, value_all: Vec<U>) -> Link<T, U> {
     }))
 }
 
+/// one of the most important function - it recovers correct values of cnt and value_all using the functions slice
 fn recover<T, U>(curr: &mut Link<T, U>, functions: &[Func<T, U>]) {
     if curr.is_none() {
         return;
@@ -73,6 +90,7 @@ fn recover<T, U>(curr: &mut Link<T, U>, functions: &[Func<T, U>]) {
     }
 }
 use std::mem;
+/// another important function which splits the implicit treap in two treaps - left treap with elements before ind and right treap with elements with index equal or greater to ind
 pub fn split<T, U>(
     curr: &mut Link<T, U>,
     ind: u64,
@@ -118,6 +136,7 @@ pub fn split<T, U>(
         }
     }
 }
+/// the last important function - it merges the treaps l_part and r_part into curr, maintaining the order and using the y_keys
 pub fn merge<T, U>(
     mut curr: &mut Link<T, U>,
     mut l_part: &mut Link<T, U>,
@@ -155,6 +174,7 @@ pub fn merge<T, U>(
     recover(&mut curr, functions);
 }
 
+/// helper function to Index trait for the extended array
 pub fn find_index<T, U>(curr: &Link<T, U>, ind: u64) -> &T {
     let mut curr_len = 1;
     let node = curr.as_ref().unwrap();
@@ -169,6 +189,7 @@ pub fn find_index<T, U>(curr: &Link<T, U>, ind: u64) -> &T {
         find_index(&node.l, ind)
     }
 }
+/// helper function to IndexMut trait for the extended array
 pub fn find_mut_index<T, U>(curr: &mut Link<T, U>, ind: u64) -> &mut T {
     let mut curr_len = 1;
     let node = curr.as_mut().unwrap();
@@ -184,6 +205,7 @@ pub fn find_mut_index<T, U>(curr: &mut Link<T, U>, ind: u64) -> &mut T {
     }
 }
 
+/// helper function to Drop trait for the extended array
 pub fn drop_treap<T, U>(curr: &mut Link<T, U>) {
     if curr.is_none() {
         return;
@@ -198,6 +220,7 @@ pub fn drop_treap<T, U>(curr: &mut Link<T, U>) {
     drop(node);
 }
 
+/// helper function to Clone trait for the extended array
 pub fn clone_treap<T, U>(curr: &Link<T, U>) -> Link<T, U>
 where
     T: Clone,
@@ -227,6 +250,7 @@ where
     Some(new_node)
 }
 
+// helper function for to_vec method of extended array that collects all values in Vector v
 pub fn collect_elements<'a, T, U>(curr: &'a Link<T, U>, mut v: &mut Vec<&'a T>) {
     if curr.is_none() {
         return;
