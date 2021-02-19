@@ -1,3 +1,4 @@
+/// This is mostly the code from the third homework for CSV parser
 #[cfg(test)]
 mod tests {
     #[test]
@@ -189,10 +190,8 @@ pub fn take_and_skip(input: &str, target: char) -> Option<(&str, &str)> {
 #[derive(Debug)]
 pub enum CsvError {
     IO(std::io::Error),
-    //ParseError(String),
     InvalidHeader(String),
     InvalidRow(String),
-    //InvalidColumn(String),
 }
 
 use std::collections::{HashMap, HashSet};
@@ -260,6 +259,7 @@ impl<R: BufRead> Csv<R> {
             match skip_next(&rem, '\"') {
                 Some(s) => rem = s,
                 _ => {
+                    // Here is a change from the homework - if there is no opening quote, we assume the property won't have quotes around it
                     match take_and_skip(rem, ',') {
                         Some((data, s)) => {
                             if s.len() > 0 && i + 1 == n {
