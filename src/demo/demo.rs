@@ -11,7 +11,11 @@ pub struct Element {
 use std::fmt::{self, Display, Formatter};
 impl Display for Element {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{};{};{};{};", self.country, self.year_week, self.cases, self.deaths)
+        write!(
+            f,
+            "{};{};{};{};",
+            self.country, self.year_week, self.cases, self.deaths
+        )
     }
 }
 
@@ -52,7 +56,7 @@ impl FromStr for Element {
             country: country.to_string().to_lowercase(),
             year_week: year_week.to_string(),
             cases: cases,
-            deaths: deaths
+            deaths: deaths,
         })
     }
 }
@@ -66,15 +70,15 @@ pub enum DemoError {
     DataLoadError(Error),
     CsvError(CsvError),
 }
-pub fn get_data () -> Result<Vec<Element>, DemoError> {
+pub fn get_data() -> Result<Vec<Element>, DemoError> {
     println!("Starting to load coronavirus data.");
-    let data = match reqwest::blocking::get("https://opendata.ecdc.europa.eu/covid19/nationalcasedeath/csv") {
+    let data = match reqwest::blocking::get(
+        "https://opendata.ecdc.europa.eu/covid19/nationalcasedeath/csv",
+    ) {
         Err(e) => return Err(DemoError::DataLoadError(e)),
-        Ok (r) => {
-            match r.text() {
-                Err(e) => return Err(DemoError::DataLoadError(e)),
-                Ok(s) => s,
-            }
+        Ok(r) => match r.text() {
+            Err(e) => return Err(DemoError::DataLoadError(e)),
+            Ok(s) => s,
         },
     };
     println!("Data loaded.");
@@ -90,17 +94,26 @@ pub fn get_data () -> Result<Vec<Element>, DemoError> {
         match csv.parse_line(line) {
             Err(e) => println!("Error when parsing {} - {:?}", line, e),
             Ok(r) => {
-                let country = r.get("\u{feff}country").unwrap().to_lowercase();
+                let country = r
+                    .get("\u{feff}country")
+                    .unwrap()
+                    .to_lowercase()
+                    .replace(' ', "_");
                 let year_week = r.get("year_week").unwrap();
 
                 let mut count = match r.get("weekly_count").unwrap().parse::<i64>() {
                     Err(e) => {
-                        println!("Error when parsing {} - {:?}", r.get("weekly_count").unwrap(), e);
+                        println!(
+                            "Error when parsing {} - {:?}",
+                            r.get("weekly_count").unwrap(),
+                            e
+                        );
                         continue;
-                    },
+                    }
                     Ok(num) => num,
                 };
-                if count < 0 { // aparently there are some cases with negative count?
+                if count < 0 {
+                    // aparently there are some cases with negative count?
                     count *= -1;
                 }
 
@@ -113,31 +126,32 @@ pub fn get_data () -> Result<Vec<Element>, DemoError> {
                     };
                     result.push(e);
                     cases.insert((country.clone(), year_week.clone()), result.len() - 1);
-                }
-                else {
+                } else {
                     let ind = cases.get(&(country.clone(), year_week.clone())).unwrap();
                     result[*ind].deaths = count as u64;
                 }
-            },
+            }
         }
     }
     println!("Data parsed.");
-    
+
     return Ok(result);
 }
 
-pub fn find_country_segment (mut country: String, exray: &Exray<Element, (f64, f64)>) -> Option<(usize, usize)> {
+pub fn find_country_segment(
+    mut country: String,
+    exray: &Exray<Element, (f64, f64)>,
+) -> Option<(usize, usize)> {
     country = country.to_lowercase();
     let mut l = -1;
     let mut r = exray.len() as i32;
     let mut mid;
 
-    while l < r-1 {
+    while l < r - 1 {
         mid = (l + r) / 2;
         if exray[mid as usize].country >= country {
             r = mid;
-        }
-        else {
+        } else {
             l = mid;
         }
     }
@@ -148,16 +162,15 @@ pub fn find_country_segment (mut country: String, exray: &Exray<Element, (f64, f
 
     l = -1;
     r = exray.len() as i32;
-    while l < r-1 {
+    while l < r - 1 {
         mid = (l + r) / 2;
         if exray[mid as usize].country <= country {
             l = mid;
-        }
-        else {
+        } else {
             r = mid;
         }
     }
     let end_ind = l;
-    
+
     return Some((beg_ind as usize, end_ind as usize));
 }

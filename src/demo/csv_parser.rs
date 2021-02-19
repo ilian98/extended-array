@@ -195,7 +195,7 @@ pub enum CsvError {
     //InvalidColumn(String),
 }
 
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 type Row = HashMap<String, String>;
 
@@ -225,7 +225,7 @@ impl<R: BufRead> Csv<R> {
                             "Duplicate column names!",
                         )));
                     }
-                    
+
                     header.insert(column.to_string());
                     columns.push(column.to_string());
                     match skip_next(&rem, ',') {
@@ -264,19 +264,23 @@ impl<R: BufRead> Csv<R> {
                         Some((data, s)) => {
                             if s.len() > 0 && i + 1 == n {
                                 println!("{}", s);
-                                return Err(CsvError::InvalidRow(String::from("Text after last data!")));
+                                return Err(CsvError::InvalidRow(String::from(
+                                    "Text after last data!",
+                                )));
                             }
                             rem = s;
                             row.insert(self.columns[i].clone(), data.to_string());
                         }
                         _ => {
                             if i + 1 < n {
-                                return Err(CsvError::InvalidRow(String::from("No comma between data!")));
+                                return Err(CsvError::InvalidRow(String::from(
+                                    "No comma between data!",
+                                )));
                             }
                         }
                     }
                     continue;
-                },
+                }
             }
             match take_and_skip(rem, '\"') {
                 Some((data, s)) => {
