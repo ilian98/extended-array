@@ -1468,6 +1468,8 @@ pub enum CommandError {
     ExrayLenError(String),
 }
 
+/// this function has one parameter which is the result after reading line from stdin or file
+/// it checks for errors and then splits the line over commas and the over spaces and returns the resulting parts 
 fn try_line(result: Option<Result<String, Error>>) -> Result<Vec<String>, CommandError> {
     match result {
         None => {
@@ -1497,10 +1499,12 @@ fn try_line(result: Option<Result<String, Error>>) -> Result<Vec<String>, Comman
 }
 
 use std::collections::{HashMap, HashSet};
-type T = Element; // change to Element for demo (default value is type i64)!
-type FuncMap<T, U> = HashMap<String, Func<T, U>>;
-type ExrayMap<T, U> = HashMap<String, Exray<T, U>>;
+type T = i64; // change to Element for demo (default value is type i64)!
+type FuncMap<T, U> = HashMap<String, Func<T, U>>; /// HashMap storing names and functions associated with them
+type ExrayMap<T, U> = HashMap<String, Exray<T, U>>; /// HashMap storing names and associated exrays
 
+/// function creating exray reading data from stdin or file, depending on arguments
+/// it returns the name of the exray that is created
 fn create<T, U>(
     words: &[String],
     line_it: &mut Lines<StdinLock>,
@@ -1521,7 +1525,7 @@ where
     let file;
     let reader;
     let mut reader_it = None;
-    if words.len() == 2 {
+    if words.len() == 2 { // we assume that we have argument which is a name of file for creating exray from it
         is_stdin = false;
         match File::open(&words[1]) {
             Err(e) => return Err(CommandError::FileError(e)),
@@ -1533,7 +1537,7 @@ where
 
     let mut r;
     if is_stdin {
-        println!("Input the exray numbers on the next line:");
+        println!("Input the exray elements on the next line:");
         r = try_line(line_it.next());
     } else {
         r = try_line(reader_it.as_mut().unwrap().next());
@@ -1553,7 +1557,7 @@ where
             }
             if nums.len() == 0 {
                 return Err(CommandError::CreateError(String::from(
-                    "No numbers were parsed, no new exray created",
+                    "No elements were parsed, no new exray created",
                 )));
             }
         }
@@ -1620,6 +1624,7 @@ where
     return Ok(name);
 }
 
+/// this function checks if the length of words is expected and also if the argument with the name of exray is a valid exray name
 fn check_name<T, U>(
     words: &[String],
     expected_len: usize,
@@ -1635,6 +1640,7 @@ fn check_name<T, U>(
     return Ok(());
 }
 
+/// saves exray into file in the same format as create expects
 fn save<T, U>(
     words: &[String],
     exrays: &ExrayMap<T, U>,
@@ -1689,6 +1695,7 @@ where
     return Ok(());
 }
 
+/// prints exray with name stored in argument words[1]
 fn print_exray<T, U>(
     words: &[String],
     exrays: &ExrayMap<T, U>,
@@ -1725,6 +1732,7 @@ where
     return Ok(());
 }
 
+/// prints element of exray at a certain index
 fn get_element<'a, T, U>(
     words: &[String],
     exrays: &'a ExrayMap<T, U>,
@@ -1756,6 +1764,7 @@ fn get_element<'a, T, U>(
     return Ok(&exray[index]);
 }
 
+/// changes exray element to new value
 fn change_element<T, U>(words: &[String], exrays: &mut ExrayMap<T, U>) -> Result<(), CommandError>
 where
     T: FromStr,
@@ -1800,6 +1809,7 @@ where
     }
 }
 
+/// inserts element at a certain index
 fn insert_element<T, U>(words: &[String], exrays: &mut ExrayMap<T, U>) -> Result<(), CommandError>
 where
     T: FromStr,
@@ -1838,6 +1848,7 @@ where
     }
 }
 
+/// erases element at a certain index
 fn erase_element<T, U>(words: &[String], exrays: &mut ExrayMap<T, U>) -> Result<(), CommandError> {
     match check_name(words, 3, exrays) {
         Err(None) => {
@@ -1864,6 +1875,7 @@ fn erase_element<T, U>(words: &[String], exrays: &mut ExrayMap<T, U>) -> Result<
     }
 }
 
+/// erases whole segment from the exray
 fn erase_segment<T, U>(words: &[String], exrays: &mut ExrayMap<T, U>) -> Result<(), CommandError> {
     match check_name(words, 4, exrays) {
         Err(None) => {
@@ -1896,6 +1908,7 @@ fn erase_segment<T, U>(words: &[String], exrays: &mut ExrayMap<T, U>) -> Result<
     }
 }
 
+/// function combining extracting and cloning segment which do almost the same, the parameter extract_or_clone should be extract or clone String
 fn extract_or_clone_segment<T, U>(
     words: &[String],
     exrays: &mut ExrayMap<T, U>,
@@ -1951,6 +1964,7 @@ where
     }
 }
 
+/// inserting exray into another exray at some index, after that the first exray is removed from the ExrayMap exrays
 fn insert_exray<T, U>(
     words: &[String],
     exrays: &mut ExrayMap<T, U>,
@@ -1997,6 +2011,7 @@ fn insert_exray<T, U>(
     }
 }
 
+/// prints the functions values for some segment of some exray, needs the functions values to be cloneable
 fn segment_fvalues<T, U>(
     words: &[String],
     exrays: &mut ExrayMap<T, U>,
@@ -2049,6 +2064,7 @@ where
     }
 }
 
+/// prints the functions values for all the element of some exray
 fn exray_fvalues<'a, T, U>(
     words: &[String],
     exrays: &'a ExrayMap<T, U>,
@@ -2080,6 +2096,7 @@ fn exray_fvalues<'a, T, U>(
     return Ok(fvalues);
 }
 
+/// prints the length of some exray
 fn exray_len<T, U>(
     words: &[String],
     exrays: &ExrayMap<T, U>,
@@ -2103,7 +2120,9 @@ use std::any::type_name;
 fn main() {
     let stdin = io::stdin();
     let mut line_it = stdin.lock().lines();
-
+    // we have two cases depending on the type T
+    // if it is i64, then it is the default case (if part)
+    // if it is Element then it is the demo case (else part)
     if type_name::<T>() == "i64" {
         let mut exrays = HashMap::<String, Exray<i64, i64>>::new();
         let mut functions = HashMap::<String, Func<i64, i64>>::new();
@@ -2114,7 +2133,7 @@ fn main() {
                 continue;
             }
             let mut iter = line.as_ref().unwrap().split_whitespace();
-            let mut words = Vec::<String>::new();
+            let mut words = Vec::<String>::new(); // in words we collect the arguments of some line
             while let Some(word) = iter.next() {
                 words.push(String::from(word));
             }
@@ -2122,11 +2141,11 @@ fn main() {
                 continue;
             }
 
-            let command_name = &words[0].to_lowercase();
+            let command_name = &words[0].to_lowercase(); // we make the command name with lowercase letters for more flexability in checking
             if command_name == "exit" {
                 break;
             }
-
+            // if the command is not exit we check the name, then call an appropriate functions that return either an error, or needed value for print
             if command_name == "create" {
                 match create(&words, &mut line_it, &mut exrays, &functions) {
                     Err(e) => println!("{:?}", e),
@@ -2250,7 +2269,7 @@ fn main() {
                 continue;
             }
             let mut iter = line.as_ref().unwrap().split_whitespace();
-            let mut words = Vec::<String>::new();
+            let mut words = Vec::<String>::new();  // in words we collect the arguments of some line
             while let Some(word) = iter.next() {
                 words.push(String::from(word));
             }
@@ -2258,11 +2277,11 @@ fn main() {
                 continue;
             }
 
-            let command_name = &words[0].to_lowercase();
+            let command_name = &words[0].to_lowercase();  // we make the command name with lowercase letters for more flexability in checking
             if command_name == "exit" {
                 break;
             }
-
+            // if the command is not exit we check the name, then call an appropriate functions that return either an error, or needed value for print
             if command_name == "create" {
                 match create(&words, &mut line_it, &mut exrays, &functions) {
                     Err(e) => println!("{:?}", e),
@@ -2353,7 +2372,7 @@ fn main() {
                     Err(e) => println!("{:?}", e),
                     Ok((name, len)) => println!("Length of exray {} is {}", name, len),
                 }
-            } else if command_name == "country_segment" {
+            } else if command_name == "country_segment" { // bonus function for the demo
                 match check_name(&words, 3, &exrays) {
                     Err(None) => {
                         println!("Two argument expected - name of exray, and code of country")
@@ -2362,7 +2381,7 @@ fn main() {
                     _ => {
                         let exray = exrays.get(&words[1]).unwrap();
                         match find_country_segment(words[2].clone(), &exray) {
-                            None => println!("No country with that code"),
+                            None => println!("No country with that name"),
                             Some((from, to)) => {
                                 println!("The country segment is from {} to {}", from, to)
                             }

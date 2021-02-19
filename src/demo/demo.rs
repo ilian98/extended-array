@@ -4,7 +4,7 @@ use std::{collections::HashMap, str::FromStr};
 use reqwest::Error;
 /// Element is a struct used for storing the important information in one line of the csv data
 pub struct Element {
-    /// name of the country, we make all names in lowercase and also all spaces are turned to underscore
+    /// name of the country, we make all names in lowercase, all spaces are turned to underscore and also we remove all commas
     country: String,
     /// string in the format yyyy-ww
     year_week: String,
@@ -20,7 +20,7 @@ impl Display for Element {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "{};{};{};{};",
+            "{};{};{};{}",
             self.country, self.year_week, self.cases, self.deaths
         )
     }
@@ -107,7 +107,8 @@ pub fn get_data() -> Result<Vec<Element>, DemoError> {
                     .get("\u{feff}country") // for some reason the first field which is country is parsed with starting \u{feff}
                     .unwrap()
                     .to_lowercase()
-                    .replace(' ', "_");
+                    .replace(' ', "_")
+                    .replace(',', "");
                 let year_week = r.get("year_week").unwrap();
 
                 let mut count = match r.get("weekly_count").unwrap().parse::<i64>() {
