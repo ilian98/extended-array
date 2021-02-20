@@ -7,7 +7,7 @@ use functions::*;
 use io::Write;
 
 use std::io::{self, BufRead, BufReader, BufWriter, Lines, StdinLock};
-use std::{fmt::Display, fs::File, io::Error, str::FromStr};
+use std::{fmt::Display, fmt::Debug, fs::File, io::Error, str::FromStr};
 
 #[cfg(test)]
 mod tests {
@@ -1499,7 +1499,6 @@ fn try_line(result: Option<Result<String, Error>>) -> Result<Vec<String>, Comman
 }
 
 use std::collections::{HashMap, HashSet};
-type T = i64; // change to Element for demo (default value is type i64)!
 type FuncMap<T, U> = HashMap<String, Func<T, U>>; /// HashMap storing names and functions associated with them
 type ExrayMap<T, U> = HashMap<String, Exray<T, U>>; /// HashMap storing names and associated exrays
 
@@ -1513,7 +1512,7 @@ fn create<T, U>(
 ) -> Result<String, CommandError>
 where
     T: FromStr,
-    <T as FromStr>::Err: std::fmt::Debug,
+    <T as FromStr>::Err: Debug,
 {
     if words.len() != 1 && words.len() != 2 {
         return Err(CommandError::CreateError(String::from(
@@ -2115,282 +2114,207 @@ fn exray_len<T, U>(
     return Ok((words[1].clone(), exray.len()));
 }
 
-use std::any::type_name;
+fn menu<T, U> (command_name: &String, words: Vec<String>, mut line_it: &mut Lines<StdinLock>, mut exrays: &mut ExrayMap<T, U>, functions: &FuncMap<T, U>)
+    where T: FromStr + Display + Clone, <T as FromStr>::Err: Debug, U: Clone + Debug {
+    if command_name == "create" {
+        match create(&words, &mut line_it, &mut exrays, &functions) {
+            Err(e) => println!("{:?}", e),
+            Ok(name) => println!("Exray with name - {}, successfully added!", name),
+        }
+    } else if command_name == "save" {
+        match save(&words, &exrays, &functions) {
+            Err(e) => println!("{:?}", e),
+            _ => println!("Exray successfully saved in file!"),
+        }
+    } else if command_name == "exray_names" {
+        if exrays.len() == 0 {
+            println!("No exrays");
+            return ;
+        }
+        print!("Exray names:");
+        for name in exrays.keys() {
+            print!(" {}", name);
+        }
+        println!();
+    } else if command_name == "print" {
+        match print_exray(&words, &exrays, &functions) {
+            Err(e) => println!("{:?}", e),
+            _ => {}
+        }
+    } else if command_name == "get_element" {
+        match get_element(&words, &exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok(element) => println!("Element is - {}", element),
+        }
+    } else if command_name == "change_element" {
+        match change_element(&words, &mut exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok(_) => println!("Element changed successfully!"),
+        }
+    } else if command_name == "insert_element" {
+        match insert_element(&words, &mut exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok(_) => println!("Element inserted successfully!"),
+        }
+    } else if command_name == "erase_element" {
+        match erase_element(&words, &mut exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok(_) => println!("Element erased successfully!"),
+        }
+    } else if command_name == "erase_segment" {
+        match erase_segment(&words, &mut exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok(_) => println!("Segment erased successfully!"),
+        }
+    } else if command_name == "extract_segment" {
+        match extract_or_clone_segment(&words, &mut exrays, String::from("extract")) {
+            Err(e) => println!("{:?}", e),
+            Ok(name) => println!(
+                "Segment extracted successfully as exray with name - {}",
+                name
+            ),
+        }
+    } else if command_name == "insert_exray" {
+        match insert_exray(&words, &mut exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok(name) => println!(
+                "Exray with name {}, inserted successfully and removed from exrays!",
+                name
+            ),
+        }
+    } else if command_name == "clone_segment" {
+        match extract_or_clone_segment(&words, &mut exrays, String::from("clone")) {
+            Err(e) => println!("{:?}", e),
+            Ok(name) => {
+                println!("Segment cloned successfully as exray with name - {}", name)
+            }
+        }
+    } else if command_name == "segment_fvalues" {
+        match segment_fvalues(&words, &mut exrays, &functions) {
+            Err(e) => println!("{:?}", e),
+            Ok(fvalues) => println!("Segment function values - {:?}", fvalues),
+        }
+    } else if command_name == "exray_fvalues" {
+        match exray_fvalues(&words, &exrays, &functions) {
+            Err(e) => println!("{:?}", e),
+            Ok(fvalues) => {
+                println!("Exray function values for all numbers - {:?}", fvalues)
+            }
+        }
+    } else if command_name == "exray_len" {
+        match exray_len(&words, &exrays) {
+            Err(e) => println!("{:?}", e),
+            Ok((name, len)) => println!("Length of exray {} is {}", name, len),
+        }
+    } else {
+        println!("No command with that name, command names are - exit, create, save, exray_names, print, get_element, change_element, insert_element, erase_element, erase_segment, extract_segment, insert_exray, clone_segment, segment_fvalues, exray_fvalues, exray_len, country_segment");
+    }
+}
 
 fn main() {
     let stdin = io::stdin();
     let mut line_it = stdin.lock().lines();
-    // we have two cases depending on the type T
-    // if it is i64, then it is the default case (if part)
-    // if it is Element then it is the demo case (else part)
-    if type_name::<T>() == "i64" {
-        let mut exrays = HashMap::<String, Exray<i64, i64>>::new();
-        let mut functions = HashMap::<String, Func<i64, i64>>::new();
-        fill_functions_i64(&mut functions);
-        while let Some(line) = line_it.next() {
-            if line.is_err() {
-                println!("{:?}", line.err());
-                continue;
-            }
-            let mut iter = line.as_ref().unwrap().split_whitespace();
-            let mut words = Vec::<String>::new(); // in words we collect the arguments of some line
-            while let Some(word) = iter.next() {
-                words.push(String::from(word));
-            }
-            if words.len() == 0 {
-                continue;
-            }
 
-            let command_name = &words[0].to_lowercase(); // we make the command name with lowercase letters for more flexability in checking
-            if command_name == "exit" {
-                break;
-            }
-            // if the command is not exit we check the name, then call an appropriate functions that return either an error, or needed value for print
-            if command_name == "create" {
-                match create(&words, &mut line_it, &mut exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => println!("Exray with name - {}, successfully added!", name),
-                }
-            } else if command_name == "save" {
-                match save(&words, &exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    _ => println!("Exray successfully saved in file!"),
-                }
-            } else if command_name == "exray_names" {
-                if exrays.len() == 0 {
-                    println!("No exrays");
+    println!("Input on the next line demo (with coronavirus data) or default (for exrays with numbers)):");
+    while let Some(line) = line_it.next() {
+        if line.is_err() {
+            println!("{:?}", line.err());
+            continue;
+        }
+        let option = line.unwrap();
+        if option == String::from("default") {
+            let mut exrays = HashMap::<String, Exray<i64, i64>>::new();
+            let mut functions = HashMap::<String, Func<i64, i64>>::new();
+            fill_functions_i64(&mut functions);
+            while let Some(line) = line_it.next() {
+                if line.is_err() {
+                    println!("{:?}", line.err());
                     continue;
                 }
-                print!("Exray names:");
-                for (name, _) in &exrays {
-                    print!(" {}", name);
+                let mut iter = line.as_ref().unwrap().split_whitespace();
+                let mut words = Vec::<String>::new();  // in words we collect the arguments of some line
+                while let Some(word) = iter.next() {
+                    words.push(String::from(word));
                 }
-                println!();
-            } else if command_name == "print" {
-                match print_exray(&words, &exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    _ => {}
-                }
-            } else if command_name == "get_element" {
-                match get_element(&words, &exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(element) => println!("Element is - {}", element),
-                }
-            } else if command_name == "change_element" {
-                match change_element(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Element changed successfully!"),
-                }
-            } else if command_name == "insert_element" {
-                match insert_element(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Element inserted successfully!"),
-                }
-            } else if command_name == "erase_element" {
-                match erase_element(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Element erased successfully!"),
-                }
-            } else if command_name == "erase_segment" {
-                match erase_segment(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Segment erased successfully!"),
-                }
-            } else if command_name == "extract_segment" {
-                match extract_or_clone_segment(&words, &mut exrays, String::from("extract")) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => println!(
-                        "Segment extracted successfully as exray with name - {}",
-                        name
-                    ),
-                }
-            } else if command_name == "insert_exray" {
-                match insert_exray(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => println!(
-                        "Exray with name {}, inserted successfully and removed from exrays!",
-                        name
-                    ),
-                }
-            } else if command_name == "clone_segment" {
-                match extract_or_clone_segment(&words, &mut exrays, String::from("clone")) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => {
-                        println!("Segment cloned successfully as exray with name - {}", name)
-                    }
-                }
-            } else if command_name == "segment_fvalues" {
-                match segment_fvalues(&words, &mut exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(fvalues) => println!("Segment function values - {:?}", fvalues),
-                }
-            } else if command_name == "exray_fvalues" {
-                match exray_fvalues(&words, &exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(fvalues) => {
-                        println!("Exray function values for all numbers - {:?}", fvalues)
-                    }
-                }
-            } else if command_name == "exray_len" {
-                match exray_len(&words, &exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok((name, len)) => println!("Length of exray {} is {}", name, len),
-                }
-            } else {
-                println!("No command with that name, command names are - exit, create, save, exray_names, print, get_element, change_element, insert_element, erase_element, erase_segment, extract_segment, insert_exray, clone_segment, segment_fvalues, exray_fvalues");
-            }
-        }
-    }
-    // demo:
-    else {
-        let data = match get_data() {
-            Err(e) => {
-                println!("{:?}", e);
-                return;
-            }
-            Ok(v) => v,
-        };
-        let mut exrays = HashMap::<String, Exray<Element, (f64, f64)>>::new();
-        let mut functions = HashMap::<String, Func<Element, (f64, f64)>>::new();
-        fill_functions_element(&mut functions);
-        let mut functions_vec = Vec::<Func<Element, (f64, f64)>>::new();
-        for (_, func) in &functions {
-            functions_vec.push(*func);
-        }
-        exrays.insert(
-            String::from("corona"),
-            Exray::<Element, (f64, f64)>::new(data, functions_vec),
-        );
-        println!("Data stored in exray with name corona!");
-
-        while let Some(line) = line_it.next() {
-            if line.is_err() {
-                println!("{:?}", line.err());
-                continue;
-            }
-            let mut iter = line.as_ref().unwrap().split_whitespace();
-            let mut words = Vec::<String>::new();  // in words we collect the arguments of some line
-            while let Some(word) = iter.next() {
-                words.push(String::from(word));
-            }
-            if words.len() == 0 {
-                continue;
-            }
-
-            let command_name = &words[0].to_lowercase();  // we make the command name with lowercase letters for more flexability in checking
-            if command_name == "exit" {
-                break;
-            }
-            // if the command is not exit we check the name, then call an appropriate functions that return either an error, or needed value for print
-            if command_name == "create" {
-                match create(&words, &mut line_it, &mut exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => println!("Exray with name - {}, successfully added!", name),
-                }
-            } else if command_name == "save" {
-                match save(&words, &exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    _ => println!("Exray successfully saved in file!"),
-                }
-            } else if command_name == "exray_names" {
-                if exrays.len() == 0 {
-                    println!("No exrays");
+                if words.len() == 0 {
                     continue;
                 }
-                print!("Exray names:");
-                for (name, _) in &exrays {
-                    print!(" {}", name);
+                let command_name = &words[0].to_lowercase();  // we make the command name with lowercase letters for more flexability in checking
+                // if the command is not exit menu checks the name and then calls an appropriate functions that return either an error, or needed value for print
+                if command_name == "exit" {
+                    break;
                 }
-                println!();
-            } else if command_name == "print" {
-                match print_exray(&words, &exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    _ => {}
+                
+                menu(command_name, words, &mut line_it, &mut exrays, &functions);
+            }
+
+            break;
+        }
+        else if option == String::from("demo") {
+            let data = match get_data() {
+                Err(e) => {
+                    println!("{:?}", e);
+                    return;
                 }
-            } else if command_name == "get_element" {
-                match get_element(&words, &exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(element) => println!("Element is - {}", element),
+                Ok(v) => v,
+            };
+            let mut exrays = HashMap::<String, Exray<Element, (f64, f64)>>::new();
+            let mut functions = HashMap::<String, Func<Element, (f64, f64)>>::new();
+            fill_functions_element(&mut functions);
+            let mut functions_vec = Vec::<Func<Element, (f64, f64)>>::new();
+            for (_, func) in &functions {
+                functions_vec.push(*func);
+            }
+            exrays.insert(
+                String::from("corona"),
+                Exray::<Element, (f64, f64)>::new(data, functions_vec),
+            );
+            println!("Data stored in exray with name corona!");
+            
+            while let Some(line) = line_it.next() {
+                if line.is_err() {
+                    println!("{:?}", line.err());
+                    continue;
                 }
-            } else if command_name == "change_element" {
-                match change_element(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Element changed successfully!"),
+                let mut iter = line.as_ref().unwrap().split_whitespace();
+                let mut words = Vec::<String>::new();  // in words we collect the arguments of some line
+                while let Some(word) = iter.next() {
+                    words.push(String::from(word));
                 }
-            } else if command_name == "insert_element" {
-                match insert_element(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Element inserted successfully!"),
+                if words.len() == 0 {
+                    continue;
                 }
-            } else if command_name == "erase_element" {
-                match erase_element(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Element erased successfully!"),
+                let command_name = &words[0].to_lowercase();  // we make the command name with lowercase letters for more flexability in checking
+                // if the command is not exit menu checks the name and then calls an appropriate functions that return either an error, or needed value for print
+                if command_name == "exit" {
+                    break;
                 }
-            } else if command_name == "erase_segment" {
-                match erase_segment(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(_) => println!("Segment erased successfully!"),
-                }
-            } else if command_name == "extract_segment" {
-                match extract_or_clone_segment(&words, &mut exrays, String::from("extract")) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => println!(
-                        "Segment extracted successfully as exray with name - {}",
-                        name
-                    ),
-                }
-            } else if command_name == "insert_exray" {
-                match insert_exray(&words, &mut exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => println!(
-                        "Exray with name {}, inserted successfully and removed from exrays!",
-                        name
-                    ),
-                }
-            } else if command_name == "clone_segment" {
-                match extract_or_clone_segment(&words, &mut exrays, String::from("clone")) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(name) => {
-                        println!("Segment cloned successfully as exray with name - {}", name)
-                    }
-                }
-            } else if command_name == "segment_fvalues" {
-                match segment_fvalues(&words, &mut exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(fvalues) => println!("Segment function values - {:?}", fvalues),
-                }
-            } else if command_name == "exray_fvalues" {
-                match exray_fvalues(&words, &exrays, &functions) {
-                    Err(e) => println!("{:?}", e),
-                    Ok(fvalues) => {
-                        println!("Exray function values for all numbers - {:?}", fvalues)
-                    }
-                }
-            } else if command_name == "exray_len" {
-                match exray_len(&words, &exrays) {
-                    Err(e) => println!("{:?}", e),
-                    Ok((name, len)) => println!("Length of exray {} is {}", name, len),
-                }
-            } else if command_name == "country_segment" { // bonus function for the demo
-                match check_name(&words, 3, &exrays) {
-                    Err(None) => {
-                        println!("Two argument expected - name of exray, and code of country")
-                    }
-                    Err(Some(e)) => println!("{:?}", e),
-                    _ => {
-                        let exray = exrays.get(&words[1]).unwrap();
-                        match find_country_segment(words[2].clone(), &exray) {
-                            None => println!("No country with that name"),
-                            Some((from, to)) => {
-                                println!("The country segment is from {} to {}", from, to)
+                
+                if command_name == "country_segment" { // bonus function for the demo
+                    match check_name(&words, 3, &exrays) {
+                        Err(None) => {
+                            println!("Two argument expected - name of exray, and name of country")
+                        }
+                        Err(Some(e)) => println!("{:?}", e),
+                        _ => {
+                            let exray = exrays.get(&words[1]).unwrap();
+                            match find_country_segment(words[2].clone(), exray) {
+                                None => println!("No country with that name"),
+                                Some((from, to)) => {
+                                    println!("The country segment is from {} to {}", from, to)
+                                }
                             }
                         }
                     }
                 }
-            } else {
-                println!("No command with that name, command names are - exit, create, save, exray_names, print, get_element, change_element, insert_element, erase_element, erase_segment, extract_segment, insert_exray, clone_segment, segment_fvalues, exray_fvalues, exray_len, country_segment");
+                else {
+                    menu(command_name, words, &mut line_it, &mut exrays, &functions);
+                }
             }
+            
+            break;
         }
+        
+        println!("Input on the next line demo (with coronavirus data) or default (for exrays with numbers)):");
     }
 }
